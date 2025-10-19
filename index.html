@@ -3,56 +3,46 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Teacher Data (This Month)</title>
+<title>Teacher Count (This Month)</title>
 <style>
   body {
     font-family: Arial, sans-serif;
-    background: linear-gradient(135deg, #74ABE2, #5563DE);
-    color: white;
+    background: linear-gradient(135deg, #2b5876, #4e4376);
+    color: #fff;
     text-align: center;
     padding: 30px;
   }
-  h1 {
-    font-size: 1.8em;
-  }
+  h1 { margin-bottom: 10px; }
+  p { margin-bottom: 20px; }
   table {
     width: 90%;
     max-width: 700px;
-    margin: 20px auto;
+    margin: 15px auto;
     border-collapse: collapse;
-    background: white;
-    color: black;
+    background: #fff;
+    color: #000;
     border-radius: 10px;
     overflow: hidden;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
   }
-  th, td {
-    padding: 10px;
-    border-bottom: 1px solid #ddd;
-  }
-  th {
-    background: #5563DE;
-    color: white;
-  }
+  th, td { padding: 10px; border-bottom: 1px solid #ddd; }
+  th { background: #4e4376; color: #fff; }
 </style>
 </head>
 <body>
 
-<h1>Teacher Data (This Month)</h1>
+<h1>Teacher Attendance (This Month)</h1>
 <p id="rangeInfo">Loading...</p>
 
-<h2>Full Records</h2>
+<h2>Records This Month</h2>
 <table id="dataTable">
-  <thead>
-    <tr><th>Date</th><th>Teacher Name</th></tr>
-  </thead>
+  <thead><tr><th>Date</th><th>Teacher</th></tr></thead>
   <tbody></tbody>
 </table>
 
 <h2>Summary (Count per Teacher)</h2>
 <table id="summaryTable">
-  <thead>
-    <tr><th>Teacher</th><th>Count</th></tr>
-  </thead>
+  <thead><tr><th>Teacher</th><th>Count</th></tr></thead>
   <tbody></tbody>
 </table>
 
@@ -60,59 +50,58 @@
 const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRgjGiwz_YAGf5XkE77TTP5BydKRO_Dp1I95wRFkUGS4M36kX1hpQWotXy5NHi7yg5HkWDpUDufZK2p/pub?output=csv";
 
 async function loadCSV() {
+  const rangeInfo = document.getElementById("rangeInfo");
+  const tbody = document.querySelector("#dataTable tbody");
+  const summaryBody = document.querySelector("#summaryTable tbody");
+  tbody.innerHTML = "";
+  summaryBody.innerHTML = "";
+
   try {
     const response = await fetch(csvUrl);
     const text = await response.text();
-    const rows = text.trim().split("\n").map(r => r.split(","));
-    
+    const rows = text.trim().split(/\r?\n/).map(r => r.split(","));
+
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
     const today = now.getDate();
-    
-    document.getElementById("rangeInfo").innerText = 
-      `Showing records from 1/${month}/${year} to ${today}/${month}/${year}`;
-    
-    const startDate = new Date(`${year}-${month}-01`);
-    const endDate = new Date(`${year}-${month}-${today}`);
-    
-    const tbody = document.querySelector("#dataTable tbody");
-    const summaryBody = document.querySelector("#summaryTable tbody");
-    tbody.innerHTML = "";
-    summaryBody.innerHTML = "";
-    
+    rangeInfo.textContent = `Showing records from 1/${month}/${year} to ${today}/${month}/${year}`;
+
     const teacherCounts = {};
 
     for (let i = 1; i < rows.length; i++) {
-      const dateStr = rows[i][0].trim();
-      const teacher = rows[i][1]?.trim() || "";
+      const dateStr = rows[i][0]?.trim();
+      const teacher = rows[i][1]?.trim();
       if (!dateStr || !teacher) continue;
 
-      const [day, mon, yr] = dateStr.split("/").map(Number);
-      const dateObj = new Date(yr, mon - 1, day);
+      // parse "MM/DD/YYYY HH:MM:SS"
+      const [datePart] = dateStr.split(" ");
+      const [mm, dd, yyyy] = datePart.split("/").map(Number);
+      const dateObj = new Date(yyyy, mm - 1, dd);
 
-      if (dateObj >= startDate && dateObj <= endDate) {
+      if (dateObj.getMonth() + 1 === month && dateObj.getFullYear() === year) {
         const tr = document.createElement("tr");
         tr.innerHTML = `<td>${dateStr}</td><td>${teacher}</td>`;
         tbody.appendChild(tr);
-
         teacherCounts[teacher] = (teacherCounts[teacher] || 0) + 1;
       }
     }
 
-    if (Object.keys(teacherCounts).length === 0) {
-      tbody.innerHTML = `<tr><td colspan="2">No data found for this month yet.</td></tr>`;
-      summaryBody.innerHTML = `<tr><td colspan="2">No teacher summary yet.</td></tr>`;
+    const entries = Object.entries(teacherCounts);
+    if (entries.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="2">No data for this month.</td></tr>`;
+      summaryBody.innerHTML = `<tr><td colspan="2">No data found.</td></tr>`;
     } else {
-      Object.entries(teacherCounts).forEach(([name, count]) => {
+      // sort teachers by count descending
+      entries.sort((a,b) => b[1] - a[1]);
+      for (const [name, count] of entries) {
         const tr = document.createElement("tr");
         tr.innerHTML = `<td>${name}</td><td>${count}</td>`;
         summaryBody.appendChild(tr);
-      });
+      }
     }
-
   } catch (err) {
-    document.getElementById("rangeInfo").innerText = "⚠️ Failed to load sheet.";
+    rangeInfo.textContent = "⚠️ Failed to fetch the sheet.";
     console.error(err);
   }
 }
